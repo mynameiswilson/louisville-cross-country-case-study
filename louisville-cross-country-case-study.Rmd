@@ -1,0 +1,126 @@
+---
+title: "Louisvillle Elementary Cross County Analysis 2017-2022"
+output: html_notebook
+---
+
+# Scenario
+
+Cross-country running is a sport that is rising in popularity for children 12 and under in Louisville, Kentucky, USA. The number of students and teams competing in fall racing events (“meets) has been steadily rising in the past two decades. Individual race result data is publicly published by meet timers and organizers - but it does not exist as an aggregated dataset. This data presents considerable opportunities for analysis of each runner and each team. From this analysis, we can provide insights on individual runners and individual teams. These insights may include runner progress, team coaching effectiveness or other insights.
+
+# Questions for the analysis
+
+1. Which runners progressed the most over these five years?
+2. Which teams progressed their runners the most each season? And year over year?
+3. TODO
+
+# About the Data
+
+* The data in this case study was sourced from official race results published publicly on [MileSplit](https://ky.milesplit.com) by the individual meet/race timers. 
+* This data represents the race results for 10,000+ individual runners over 5 seasons of results, spanning six years: 2017 to 2022¹.
+* Each record represents a timed result by a runner in an age/grade/class-specific event of a specific distance, in a meet on a specific day. 
+* The data was copied from MileSplit, imported and cleaned after each race in Google Sheets.
+
+*¹ The 2020 season was canceled due to the COVID-19 Pandemic.*
+
+# Step 1: Loading packages
+
+```{r}
+library(tidyverse) #wrangle data
+library(googlesheets4)
+library(lubridate)  #wrangle date attributes
+library(skimr) #get summary data
+library(ggplot2) #visualize data
+```
+
+# Step 2: Prepare Data
+
+## Import Data
+
+```{r}
+setwd("/Users/ben/Sites/benwilson/web/louisville-cross-country-case-study/")
+
+results <- read_csv("Louisville Cross Country XC Results (2017-2022) Results Master - Results.csv")
+problems(results)
+```
+
+## Preview Imported Data
+```{r}
+head(results)
+```
+
+## Remove rows with Missing Data
+Rows that have "#N/A" (Google Sheets) or values matching R's is.na() function are removed.
+
+```{r}
+results <- results %>% filter_at(vars(School,Runner,Time),all_vars(.!="#N/A" & !is.na(.)))
+```
+
+## Format Dates
+The "Date" field is an integer YYYYMMDD. This needs to be converted to an R date format.
+
+```{r}
+results$Date = as.Date(as.character(results$Date), format="%Y%m%d")
+```
+
+## Convert Times to Durations
+```{r}
+results$Time <- as.duration(hms(results$Time))
+```
+
+## Generate a Pace (minutes/mile) calculation (Time / Distance)
+```{r}
+results$Pace <- as.duration(results$Time/results$Distance)
+```
+## Generate an EventGender field based upon the Event name
+If event name contains "Boys" = M(ale). If event contains "Girls" = F(emale). If neither, "Combined".
+
+```{r}
+results$EventGender <- ifelse(grepl("Boys",results$Event),"M", ifelse(grepl("Girls",results$Event),"F","Combined"))
+```
+
+Preview the mean pace for each Event, by Gender:
+```{r}
+results %>%
+  group_by(EventGender) %>%
+  summarize(mean_pace = as.duration(mean(Pace)))
+```
+
+## Preview Cleaned Data
+Note the row counts.
+
+```{r}
+head(results)
+```
+
+
+# Step 3: Exploring and summarizing data
+
+```{r}
+n_distinct(results$Meet)
+n_distinct(results$Event)
+n_distinct(results$School)
+n_distinct(results$Runner)
+n_distinct(results$Distance)
+```
+
+This information gives us the scope of the dataset: 
+
+There are 10,652 unique runners from 330 schools in this dataset.
+
+Let’s have a look at summary statistics of the data sets:
+
+```{r}
+
+```
+```{r}
+results %>%
+  group_by(School, year(Date)) %>%
+  mutate(total_results = n()) %>% 
+  filter(total_results >= 10) %>% 
+  summarize(mean_pace_male = as.duration(mean(Pace[EventGender=="M"])),mean_pace_female = as.duration(mean(Pace[EventGender=="F"])),number_of_events=n()) %>%
+  arrange(mean_pace_male)
+```
+
+* average pace per school per year
+* Assign event gender to each event, based on event name
+* Assign gender to each runner, based on event gender
